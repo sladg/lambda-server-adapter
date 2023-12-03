@@ -10,4 +10,4 @@ build-layer-arm:
 format:
 	cargo fmt --all
 
-build: clean, build-layer-x86_64 build-layer-arm
+build: build-layer-x86_64 build-layer-arm

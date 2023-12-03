@@ -4,7 +4,8 @@ use hyper::{
     Body as HyperBody, Request as HyperRequest,
 };
 use lambda_http::{service_fn, Error, Request, RequestExt, Response};
-use std::{process::Stdio, time::Duration};
+use serde::Deserialize;
+use std::{ffi::OsStr, path::Path, process::Stdio, time::Duration};
 use std::{
     process::{Child, Command},
     sync::Arc,
@@ -21,12 +22,31 @@ use url::Url;
 //  "buffered"
 //  "response_stream"
 
-async fn starter() -> Child {
+#[derive(Deserialize, Debug)]
+struct Configuration {
+    _handler: String,
+    server_url: String,
+}
+
+fn get_executable_from_filepath(filename: &str) -> Option<&str> {
+    let ext = Path::new(filename).extension().and_then(OsStr::to_str);
+
+    match ext {
+        Some("js") => Some("node"),
+        Some("py") => Some("python"),
+        // @TODO: Add support for other languages.
+        _ => panic!("Unsupported extension: {}", ext.unwrap()),
+    }
+}
+
+async fn starter(filepath: &str) -> Child {
     // Run `node server.js` to start the server.
     // Wait for the server to be ready.
 
-    let mut child: Child = Command::new("node")
-        .arg("/var/task/server.js")
+    let executable = get_executable_from_filepath(filepath).unwrap();
+
+    let mut child: Child = Command::new(executable)
+        .arg(filepath)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
@@ -54,19 +74,11 @@ async fn starter() -> Child {
     child
 }
 
-async fn checker() {
-    // @TODO: Pass string in env vars.
-    let schema = String::from("http");
-    let host = String::from("localhost");
-    let port = String::from("3000");
-    let readiness_path = String::from("/api");
+async fn checker(health_check_url: &str) {
+    let domain = Url::parse(health_check_url).map(String::from).unwrap();
 
-    let timeout = Duration::from_millis(10);
+    let http_timeout = Duration::from_millis(10);
     let sleep_time = time::Duration::from_millis(50);
-
-    let domain: String = format!("{}://{}:{}{}", schema, host, port, readiness_path)
-        .parse()
-        .unwrap();
 
     let mut is_ready = false;
 
@@ -84,7 +96,7 @@ async fn checker() {
 
         let status_res = Client::new().request(req);
 
-        match tokio::time::timeout(timeout, status_res).await {
+        match tokio::time::timeout(http_timeout, status_res).await {
             Ok(result) => match result {
                 Ok(response) => {
                     println!("[Adapter] Status: {}", response.status());
@@ -99,7 +111,7 @@ async fn checker() {
             Err(_) => {
                 println!(
                     "[Adapter] Timeout: no response in {} milliseconds. Trying again...",
-                    timeout.as_millis()
+                    http_timeout.as_millis()
                 );
             }
         };
@@ -114,14 +126,8 @@ async fn checker() {
     }
 }
 
-async fn translator(event: Request) -> Result<Response<HyperBody>, Error> {
-    let _schema = String::from("http");
-    let _host = String::from("localhost");
-    let _port = String::from("3000");
-    let _readiness_path = String::from("/api");
-    let _timeout = Duration::from_millis(10);
-
-    let domain = Url::parse("http://localhost:3000").unwrap();
+async fn translator(server_url: &str, event: Request) -> Result<Response<HyperBody>, Error> {
+    let domain = Url::parse(server_url).unwrap();
 
     let request_context = event.request_context();
     let lambda_context = &event.lambda_context();
@@ -181,8 +187,10 @@ async fn main() -> Result<(), Error> {
     // Translate http response into event.
     // Call http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/${REQUEST_ID}/response
 
+    let config = &envy::from_env::<Configuration>().expect("Please provide _HANDLER, HEALTH_CHECK_URL env var");
+
     println!("[Adapter] Starting server...");
-    starter().await;
+    starter(&config._handler).await;
 
     // @TODO: Graceful shutdown server on SIGTERM.
     // match signal::ctrl_c().await {
@@ -194,13 +202,13 @@ async fn main() -> Result<(), Error> {
     // }
 
     println!("[Adapter] Waiting for server to start...");
-    checker().await;
+    checker(&config.server_url).await;
 
-    println!("Starting handler...");
-    let result = lambda_http::run(service_fn(translator)).await;
+    println!("[Adapter] Starting handler...");
+    let result = lambda_http::run(service_fn(|event: Request| translator(&config.server_url, event))).await;
 
     match result {
-        Ok(_) => println!("Success"),
+        Ok(_) => println!("[Adapter] Success"),
         Err(err) => println!("[Adapter] Error: {}", err),
     }
 
