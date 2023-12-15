@@ -1,4 +1,5 @@
 .cargo
 .vscode
 /target
-/dist
+**/dist
+**/node_modules

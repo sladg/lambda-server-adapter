@@ -8,22 +8,38 @@ Useful for applications such as NextJS, Graphql or REST servers, Express, Apollo
 
 ## Features
 
-- Run web applications on AWS Lambda
-- Supports Amazon API Gateway Rest API and Http API endpoints, Lambda Function URLs, and Application Load Balancer
-- Supports Lambda managed runtimes, custom runtimes and docker OCI images
-- Supports any web frameworks and languages, no new code dependency to include
-- Automatic encode binary response
-- Enables graceful shutdown
-- Supports response payload compression
-- Supports response streaming
+- Starts server before events come in and keeps it running in the background as long as events are coming in.
+- Translates AWS events into HTTP requests.
+- Translates HTTP responses into AWS events.
+- Simple plug-and-play as layer.
+- Small size, no dependencies, as fast as your server.
 
 ## Usage
 
 AWS Lambda Server Adapter work with native runtimes. It is added in a form of Layer.
 
+### NextJS
+
+For NextJS application you need to do following:
+
+- `next build` (in standalone mode),
+- `cp -r ./public .next/standalone/public`,
+- `cp -r .next/static/ .next/standalone/.next/static`,
+- zip the folder and upload it as Lambda code,
+- add `lambda-server-adapter` as a layer,
+- set handler as path to `server.js` file (aka `/var/task/server.js`),
+- set `SERVER_URL=http://localhost:3000` as environment variable (best is to use `/api/health` route),
+- set `AWS_LAMBDA_EXEC_WRAPPER = "/opt/lambda-adapter/bootstrap"` to use the wrapper.
+
+:tada: profit!
+
 ### Lambda functions packaged as Zip package for AWS managed runtimes
 
 <!-- @TODO: Publish layer arns for use. -->
+
+### Handler configuration
+
+<!-- @TODO: Document how extensions are resolved (node, python) from handler file -->
 
 ## Readiness Check
 
