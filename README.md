@@ -18,20 +18,7 @@ Useful for applications such as NextJS, Graphql or REST servers, Express, Apollo
 
 AWS Lambda Server Adapter work with native runtimes. It is added in a form of Layer.
 
-### NextJS
-
-For NextJS application you need to do following:
-
-- `next build` (in standalone mode),
-- `cp -r ./public .next/standalone/public`,
-- `cp -r .next/static/ .next/standalone/.next/static`,
-- zip the folder and upload it as Lambda code,
-- add `lambda-server-adapter` as a layer,
-- set handler as path to `server.js` file (aka `/var/task/server.js`),
-- set `SERVER_URL=http://localhost:3000` as environment variable (best is to use `/api/health` route),
-- set `AWS_LAMBDA_EXEC_WRAPPER = "/opt/lambda-adapter/bootstrap"` to use the wrapper.
-
-:tada: profit!
+[NextJS](/examples/Next.md)
 
 ### Lambda functions packaged as Zip package for AWS managed runtimes
 
@@ -57,4 +44,4 @@ In case server does not start - command fails, HTTP response is not received, et
 
 ## Acknowledgement
 
-This is a direct fork of [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) which was re-written and simplified.
+This is a direct fork of [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) which was re-written and simplified. It's based on AWS's [lambda_http](https://docs.rs/lambda_http/latest/lambda_http/).
